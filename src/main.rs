@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         fs::set_permissions(&args.output_dir, Permissions::from_mode(0o700))?;
     }
 
-    let output = File::open(args.output_dir)?;
+    let output_dir = File::open(args.output_dir)?;
 
     let enter_res = unsafe { libc::cap_enter() };
     if enter_res != 0 {
@@ -51,19 +51,19 @@ fn main() -> Result<(), Box<dyn Error>> {
             0 => {}
             1 => eprintln!("{d}", d = current_path.display()),
             _ => eprintln!(
-                "{d} | 0o{p:o}",
+                "{d} | 0o{m:o}",
                 d = current_path.display(),
-                p = current_mode,
+                m = current_mode,
             ),
         }
 
         if entry.header().entry_type().is_dir() {
-            mkdirat(&output, current_path.as_ref(), current_perm)?;
+            mkdirat(&output_dir, current_path.as_ref(), current_perm)?;
 
             continue;
         }
 
-        let mut current_file = openat(&output, current_path.as_ref(), current_perm)?;
+        let mut current_file = openat(&output_dir, current_path.as_ref(), current_perm)?;
 
         io::copy(&mut entry, &mut current_file)?;
     }
@@ -86,9 +86,9 @@ DESCRIPTION
   ctgz extracts a tar.gz from stdin into OUTPUT-DIR in capsicum mode.
 
 OPTIONS
-  -F         Allow extracting into an existing directory
-  -h, --help Display this information
-  -v[v]      Enable verbose logging";
+  -F          Allow extracting into an existing directory
+  -h, --help  Display this information
+  -v[v]       Enable verbose logging";
 
 fn parse_args() -> Result<Args, Box<dyn Error>> {
     let mut args = Args {
