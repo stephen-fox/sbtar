@@ -1,16 +1,15 @@
 use std::{
     env,
     error::Error,
-    fs::{self, Permissions},
+    ffi::CString,
+    fs::{self, File, Permissions},
     io,
-    os::unix::fs::PermissionsExt,
-    path::PathBuf,
+    os::{
+        fd::{AsRawFd, FromRawFd},
+        unix::fs::PermissionsExt,
+    },
+    path::{Path, PathBuf},
     process::exit,
-};
-
-use cap_std::fs::{
-    Dir as CapDir, DirBuilder as CapDirBuilder, DirBuilderExt as CapDirBuilderExt,
-    Permissions as CapPermissions, PermissionsExt as CapPermissionsExt,
 };
 
 use flate2::read::GzDecoder;
@@ -32,40 +31,39 @@ fn main() -> Result<(), Box<dyn Error>> {
         fs::set_permissions(&args.output_dir, Permissions::from_mode(0o700))?;
     }
 
-    let output = CapDir::open_ambient_dir(&args.output_dir, cap_std::ambient_authority())?;
+    let output = File::open(args.output_dir)?;
 
-    capsicum::enter()?;
+    let enter_res = unsafe { libc::cap_enter() };
+    if enter_res != 0 {
+        Err(last_error("cap_enter failed"))?;
+    }
 
     let mut archive = Archive::new(GzDecoder::new(io::stdin()));
-
-    let mut output_builder = CapDirBuilder::new();
-    output_builder.recursive(true);
 
     for entry_result in archive.entries()? {
         let mut entry = entry_result?;
 
         let current_path = entry.path()?;
+        let current_mode = entry.header().mode()?;
+        let current_perm = Permissions::from_mode(current_mode);
 
-        if args.verbose {
-            eprintln!("{d}", d = current_path.display());
+        match args.verbose {
+            0 => {}
+            1 => eprintln!("{d}", d = current_path.display()),
+            _ => eprintln!(
+                "{d} | 0o{p:o}",
+                d = current_path.display(),
+                p = current_mode,
+            ),
         }
 
-        let current_mode = entry.header().mode()?;
-
-        let mut file_path = PathBuf::new();
-        file_path.push(&current_path);
-
         if entry.header().entry_type().is_dir() {
-            output_builder.mode(current_mode);
-
-            CapDir::create_dir_with(&output, file_path.as_path(), &output_builder)?;
+            mkdirat(&output, current_path.as_ref(), current_perm)?;
 
             continue;
         }
 
-        let mut current_file = output.create(file_path)?;
-
-        current_file.set_permissions(CapPermissions::from_mode(current_mode))?;
+        let mut current_file = openat(&output, current_path.as_ref(), current_perm)?;
 
         io::copy(&mut entry, &mut current_file)?;
     }
@@ -75,7 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 struct Args {
     use_existing_dir: bool,
-    verbose: bool,
+    verbose: u8,
     output_dir: PathBuf,
 }
 
@@ -88,14 +86,14 @@ DESCRIPTION
   ctgz extracts a tar.gz from stdin into OUTPUT-DIR in capsicum mode.
 
 OPTIONS
-  -F            Allow extracting into an existing directory
-  -h, --help    Display this information
-  -v, --verbose Enable verbose logging";
+  -F         Allow extracting into an existing directory
+  -h, --help Display this information
+  -v[v]      Enable verbose logging";
 
 fn parse_args() -> Result<Args, Box<dyn Error>> {
     let mut args = Args {
         use_existing_dir: false,
-        verbose: false,
+        verbose: 0,
         output_dir: PathBuf::new(),
     };
 
@@ -106,7 +104,8 @@ fn parse_args() -> Result<Args, Box<dyn Error>> {
                 exit(1);
             }
             "-F" => args.use_existing_dir = true,
-            "-v" | "--verbose" => args.verbose = true,
+            "-v" => args.verbose = args.verbose + 1,
+            "-vv" => args.verbose = args.verbose + 2,
             _ => {
                 if i == env::args().count() - 2 && !arg.starts_with("-") {
                     args.output_dir.push(arg);
@@ -123,4 +122,56 @@ fn parse_args() -> Result<Args, Box<dyn Error>> {
     }
 
     Ok(args)
+}
+
+fn mkdirat(dir: &File, p: &Path, perm: Permissions) -> Result<(), Box<dyn Error>> {
+    let dir_fd = dir.as_raw_fd();
+
+    let tmp = match p.to_str() {
+        Some(s) => s,
+        None => Err("path does not contain a string")?,
+    };
+
+    let tmp = CString::new(tmp)?;
+
+    let mode = match u16::try_from(perm.mode()) {
+        Ok(v) => v,
+        Err(err) => Err(err)?,
+    };
+
+    let res = unsafe { libc::mkdirat(dir_fd, tmp.as_ptr(), mode) };
+    if res != 0 {
+        Err(last_error("mkdirat failed"))?
+    }
+
+    Ok(())
+}
+
+fn openat(dir: &File, p: &Path, perm: Permissions) -> Result<File, Box<dyn Error>> {
+    let dir_fd = dir.as_raw_fd();
+
+    let tmp = match p.to_str() {
+        Some(s) => s,
+        None => Err("path does not contain a string")?,
+    };
+
+    let tmp = CString::new(tmp)?;
+
+    let res = unsafe { libc::openat(dir_fd, tmp.as_ptr(), libc::O_CREAT | libc::O_WRONLY) };
+    if res < 0 {
+        Err(last_error("openat failed"))?
+    }
+
+    let file = unsafe { File::from_raw_fd(res) };
+
+    file.set_permissions(perm)?;
+
+    Ok(file)
+}
+
+fn last_error(prefix: &str) -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::Other,
+        format!("{prefix} - {err}", err = std::io::Error::last_os_error()),
+    )
 }
