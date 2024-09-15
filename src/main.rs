@@ -189,7 +189,7 @@ fn permissions_to_mode(perm: Permissions) -> Result<u16, Box<dyn Error>> {
     Ok(mode)
 }
 
-#[cfg(not(target_os = "freebsd"))]
+#[cfg(not(any(target_os = "freebsd", target_os = "macos", target_os = "ios")))]
 fn permissions_to_mode(perm: Permissions) -> Result<u32, Box<dyn Error>> {
     Ok(perm.mode())
 }
