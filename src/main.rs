@@ -78,7 +78,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut current_file = openat(
             &output_dir,
             current_path.as_ref(),
-            libc::O_CREAT | libc::LIO_WRITE,
+            libc::O_CREAT | libc::O_WRONLY,
             current_perm,
         )?;
 
