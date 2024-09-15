@@ -1,0 +1,10 @@
+[package]
+name = "ctgz"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cap-std = "3.2.0"
+capsicum = "0.4.2"
+flate2 = "1.0.33"
+tar = "0.4.41"
