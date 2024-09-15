@@ -147,13 +147,33 @@ fn enter_sandbox(_: &Path) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[cfg(target_os = "openbsd")]
+fn enter_sandbox(output_dir: &Path) -> Result<(), Box<dyn Error>> {
+    let path_cstring = path_to_cstring(output_dir)?;
+    let unveil_perms = CString::new("rwc")?;
+
+    if unsafe { libc::unveil(path_cstring.as_ptr(), unveil_perms.as_ptr()) } != 0 {
+        Err(last_error("unveil failed"))?;
+    }
+
+    if unsafe { libc::unveil(std::ptr::null(), std::ptr::null()) } != 0 {
+        Err(last_error("unveil lock failed"))?;
+    }
+
+    let promises = CString::new("stdio rpath wpath cpath fattr")?;
+    let exec_promises = CString::new("")?;
+
+    if unsafe { libc::pledge(promises.as_ptr(), exec_promises.as_ptr()) } != 0 {
+        Err(last_error("pledge failed"))?;
+    }
+
+    Ok(())
+}
+
 fn mkdirat(dir: &File, p: &Path, perm: Permissions) -> Result<(), Box<dyn Error>> {
     let path_cstring = path_to_cstring(p)?;
 
-    let mode = match u16::try_from(perm.mode()) {
-        Ok(v) => v,
-        Err(err) => Err(err)?,
-    };
+    let mode = permissions_to_mode(perm)?;
 
     let res = unsafe { libc::mkdirat(dir.as_raw_fd(), path_cstring.as_ptr(), mode) };
     if res != 0 {
@@ -161,6 +181,17 @@ fn mkdirat(dir: &File, p: &Path, perm: Permissions) -> Result<(), Box<dyn Error>
     }
 
     Ok(())
+}
+
+#[cfg(any(target_os = "freebsd", target_os = "macos", target_os = "ios"))]
+fn permissions_to_mode(perm: Permissions) -> Result<u16, Box<dyn Error>> {
+    let mode = u16::try_from(perm.mode())?;
+    Ok(mode)
+}
+
+#[cfg(not(target_os = "freebsd"))]
+fn permissions_to_mode(perm: Permissions) -> Result<u32, Box<dyn Error>> {
+    Ok(perm.mode())
 }
 
 fn openat(dir: &File, p: &Path, flags: i32, perm: Permissions) -> Result<File, Box<dyn Error>> {
