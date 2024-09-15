@@ -31,12 +31,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         fs::set_permissions(&args.output_dir, Permissions::from_mode(0o700))?;
     }
 
-    let output_dir = File::open(args.output_dir)?;
+    let output_dir = File::open(&args.output_dir)?;
 
-    let enter_res = unsafe { libc::cap_enter() };
-    if enter_res != 0 {
-        Err(last_error("cap_enter failed"))?;
-    }
+    enter_sandbox(args.output_dir.as_path())?;
 
     let mut archive = Archive::new(GzDecoder::new(io::stdin()));
 
@@ -139,6 +136,15 @@ fn parse_args() -> Result<Args, Box<dyn Error>> {
     }
 
     Ok(args)
+}
+
+#[cfg(target_os = "freebsd")]
+fn enter_sandbox(_: &Path) -> Result<(), Box<dyn Error>> {
+    if unsafe { libc::cap_enter() } != 0 {
+        Err(last_error("cap_enter failed"))?;
+    }
+
+    Ok(())
 }
 
 fn mkdirat(dir: &File, p: &Path, perm: Permissions) -> Result<(), Box<dyn Error>> {
