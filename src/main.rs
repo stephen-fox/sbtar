@@ -97,7 +97,7 @@ SYNOPSIS
   ctgz [options] OUTPUT-DIR
 
 DESCRIPTION
-  ctgz extracts a tar.gz from stdin into OUTPUT-DIR in capsicum mode.
+  ctgz enters a sandbox and extracts a tar.gz from stdin into OUTPUT-DIR.
 
 OPTIONS
   -F          Allow extracting into an existing directory
