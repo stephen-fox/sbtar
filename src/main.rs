@@ -51,19 +51,36 @@ fn main() -> Result<(), Box<dyn Error>> {
             0 => {}
             1 => eprintln!("{d}", d = current_path.display()),
             _ => eprintln!(
-                "{d} | 0o{m:o}",
-                d = current_path.display(),
-                m = current_mode,
+                "{path} | 0x{type_b:x} | 0o{mode:o}",
+                path = current_path.display(),
+                type_b = entry.header().entry_type().as_byte(),
+                mode = current_mode,
             ),
         }
 
         if entry.header().entry_type().is_dir() {
+            if args.use_existing_dir {
+                let exists = existsat(&output_dir, current_path.as_ref())?;
+                if exists {
+                    continue;
+                }
+            }
+
             mkdirat(&output_dir, current_path.as_ref(), current_perm)?;
 
             continue;
         }
 
-        let mut current_file = openat(&output_dir, current_path.as_ref(), current_perm)?;
+        if args.use_existing_dir {
+            unlinkat_if_exists(&output_dir, current_path.as_ref())?;
+        }
+
+        let mut current_file = openat(
+            &output_dir,
+            current_path.as_ref(),
+            libc::O_CREAT | libc::LIO_WRITE,
+            current_perm,
+        )?;
 
         io::copy(&mut entry, &mut current_file)?;
     }
@@ -125,21 +142,14 @@ fn parse_args() -> Result<Args, Box<dyn Error>> {
 }
 
 fn mkdirat(dir: &File, p: &Path, perm: Permissions) -> Result<(), Box<dyn Error>> {
-    let dir_fd = dir.as_raw_fd();
-
-    let tmp = match p.to_str() {
-        Some(s) => s,
-        None => Err("path does not contain a string")?,
-    };
-
-    let tmp = CString::new(tmp)?;
+    let path_cstring = path_to_cstring(p)?;
 
     let mode = match u16::try_from(perm.mode()) {
         Ok(v) => v,
         Err(err) => Err(err)?,
     };
 
-    let res = unsafe { libc::mkdirat(dir_fd, tmp.as_ptr(), mode) };
+    let res = unsafe { libc::mkdirat(dir.as_raw_fd(), path_cstring.as_ptr(), mode) };
     if res != 0 {
         Err(last_error("mkdirat failed"))?
     }
@@ -147,17 +157,10 @@ fn mkdirat(dir: &File, p: &Path, perm: Permissions) -> Result<(), Box<dyn Error>
     Ok(())
 }
 
-fn openat(dir: &File, p: &Path, perm: Permissions) -> Result<File, Box<dyn Error>> {
-    let dir_fd = dir.as_raw_fd();
+fn openat(dir: &File, p: &Path, flags: i32, perm: Permissions) -> Result<File, Box<dyn Error>> {
+    let path_cstring = path_to_cstring(p)?;
 
-    let tmp = match p.to_str() {
-        Some(s) => s,
-        None => Err("path does not contain a string")?,
-    };
-
-    let tmp = CString::new(tmp)?;
-
-    let res = unsafe { libc::openat(dir_fd, tmp.as_ptr(), libc::O_CREAT | libc::O_WRONLY) };
+    let res = unsafe { libc::openat(dir.as_raw_fd(), path_cstring.as_ptr(), flags) };
     if res < 0 {
         Err(last_error("openat failed"))?
     }
@@ -167,6 +170,41 @@ fn openat(dir: &File, p: &Path, perm: Permissions) -> Result<File, Box<dyn Error
     file.set_permissions(perm)?;
 
     Ok(file)
+}
+
+fn existsat(dir: &File, p: &Path) -> Result<bool, Box<dyn Error>> {
+    let path_cstring = path_to_cstring(p)?;
+
+    let res = unsafe { libc::faccessat(dir.as_raw_fd(), path_cstring.as_ptr(), libc::F_OK, 0) };
+
+    Ok(res == 0)
+}
+
+fn unlinkat_if_exists(dir: &File, p: &Path) -> Result<(), Box<dyn Error>> {
+    let path_cstring = path_to_cstring(p)?;
+
+    let res = unsafe { libc::faccessat(dir.as_raw_fd(), path_cstring.as_ptr(), libc::F_OK, 0) };
+    if res != 0 {
+        return Ok(());
+    }
+
+    let res = unsafe { libc::unlinkat(dir.as_raw_fd(), path_cstring.as_ptr(), 0) };
+    if res != 0 {
+        Err(last_error("unlinkat failed"))?;
+    }
+
+    Ok(())
+}
+
+fn path_to_cstring(p: &Path) -> Result<CString, Box<dyn Error>> {
+    let path_cstring = match p.to_str() {
+        Some(s) => s,
+        None => Err("path does not contain a string")?,
+    };
+
+    let tmp = CString::new(path_cstring)?;
+
+    Ok(tmp)
 }
 
 fn last_error(prefix: &str) -> std::io::Error {
