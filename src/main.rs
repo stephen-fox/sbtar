@@ -3,7 +3,7 @@ use std::{
     error::Error,
     ffi::CString,
     fs::{self, File, Permissions},
-    io,
+    io::{self, Read},
     os::{
         fd::{AsRawFd, FromRawFd},
         unix::fs::PermissionsExt,
@@ -35,7 +35,33 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     enter_sandbox(args.output_dir.as_path())?;
 
-    let mut archive = Archive::new(GzDecoder::new(io::stdin()));
+    // The following awful code abstracts different tar types.
+    // It is based on this stackoverflow answer by Emoun and
+    // Chayim Friedman respectively:
+    // - https://stackoverflow.com/a/67041779
+    // - https://stackoverflow.com/a/70104523
+    //
+    // Part 1/2:
+    //   These two variables satisfy the borrow checker and avoid
+    //   dropping references to the underlying values. They also
+    //   tell the compiler the size of the underlying data:
+    let (mut gz, mut stdin);
+
+    // Part 2/2:
+    //   Lastly, to satisfy the Read trait required by the Archive
+    //   library, we need a mutable reference to the underlying
+    //   values. First, we set the concrete variables to their
+    //   respective values. Then, we take a mutable reference
+    //   to those variables:
+    let reader: &mut dyn Read = if args.gzip {
+        gz = GzDecoder::new(io::stdin());
+        &mut gz
+    } else {
+        stdin = io::stdin();
+        &mut stdin
+    };
+
+    let mut archive = Archive::new(reader);
 
     for entry_result in archive.entries()? {
         let mut entry = entry_result?;
@@ -87,6 +113,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 struct Args {
     use_existing_dir: bool,
+    gzip: bool,
     verbose: u8,
     output_dir: PathBuf,
 }
@@ -97,16 +124,18 @@ SYNOPSIS
   ctgz [options] OUTPUT-DIR
 
 DESCRIPTION
-  ctgz enters a sandbox and extracts a tar.gz from stdin into OUTPUT-DIR.
+  ctgz enters a sandbox and extracts a tar from stdin into OUTPUT-DIR.
 
 OPTIONS
   -F          Allow extracting into an existing directory
   -h, --help  Display this information
+  -z, --gzip  Input file is gzip-compressed
   -v[v]       Enable verbose logging";
 
 fn parse_args() -> Result<Args, Box<dyn Error>> {
     let mut args = Args {
         use_existing_dir: false,
+        gzip: false,
         verbose: 0,
         output_dir: PathBuf::new(),
     };
@@ -118,6 +147,7 @@ fn parse_args() -> Result<Args, Box<dyn Error>> {
                 exit(1);
             }
             "-F" => args.use_existing_dir = true,
+            "-z" => args.gzip = true,
             "-v" => args.verbose = args.verbose + 1,
             "-vv" => args.verbose = args.verbose + 2,
             _ => {
