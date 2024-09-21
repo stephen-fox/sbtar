@@ -30,15 +30,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ctgz"
-version = "0.1.0"
-dependencies = [
- "flate2",
- "libc",
- "tar",
-]
-
-[[package]]
 name = "errno"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -122,6 +113,15 @@ dependencies = [
  "libc",
  "linux-raw-sys",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "star"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "libc",
+ "tar",
 ]
 
 [[package]]

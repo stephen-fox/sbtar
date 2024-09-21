@@ -118,18 +118,16 @@ struct Args {
     output_dir: PathBuf,
 }
 
-const USAGE: &str = "ctgz
-
-SYNOPSIS
-  ctgz [options] OUTPUT-DIR
+const USAGE: &str = "SYNOPSIS
+  star [options] OUTPUT-DIR
 
 DESCRIPTION
-  ctgz enters a sandbox and extracts a tar from stdin into OUTPUT-DIR.
+  star enters a sandbox and extracts a tar from stdin into OUTPUT-DIR.
 
 OPTIONS
   -F          Allow extracting into an existing directory
   -h, --help  Display this information
-  -z, --gzip  Input file is gzip-compressed
+  -z, --gzip  File is gzip-compressed
   -v[v]       Enable verbose logging";
 
 fn parse_args() -> Result<Args, Box<dyn Error>> {
