@@ -150,7 +150,18 @@ fn parse_args() -> Result<Args, Box<dyn Error>> {
             "-vv" => args.verbose = args.verbose + 2,
             _ => {
                 if i == env::args().count() - 2 && !arg.starts_with("-") {
-                    args.output_dir.push(arg);
+                    // Some sandboxing code (like that of macOS) requires
+                    // the path be absolute. We cannot use fs::canonicalize
+                    // because it tries to access the file system, which
+                    // will fail if the directory does not already exist.
+                    args.output_dir.push(&arg);
+                    if args.output_dir.is_relative() {
+                        args.output_dir.clear();
+
+                        args.output_dir.push(env::current_dir()?);
+                        args.output_dir.push(arg);
+                    }
+
                     break;
                 }
 
@@ -196,6 +207,78 @@ fn enter_sandbox(output_dir: &Path) -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
+}
+
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+fn enter_sandbox(output_dir: &Path) -> Result<(), Box<dyn Error>> {
+    let profile = CString::new(format!(
+        "(version 1)
+(deny default)
+(allow file-read* file-write*
+    (subpath \"{}\"))",
+        output_dir.display()
+    ))?;
+
+    // Double pointer by troop357.
+    // Note: Instead of creating a second variable like troop357 does,
+    // we can create the parent pointer in the function call's ():
+    // https://stackoverflow.com/a/58530805
+    let mut errorbuf: *mut std::ffi::c_char = std::ptr::null_mut();
+
+    let result = unsafe { sandbox_init(profile.as_ptr(), 0, &mut errorbuf) };
+    if result != 0 {
+        match unsafe { CString::from_raw(errorbuf) }.into_string() {
+            Ok(msg) => Err(format!("sandbox init failed - {}", msg))?,
+            Err(err) => Err(format!(
+                "sandbox init failed - unknown error (failed to convert errorbuf to string: {err})"
+            ))?,
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[link(name = "sandbox")]
+extern "C" {
+    /// Refer to: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sandbox.h
+    ///
+    /// For an example with sandbox_init_with_parameters, refer to:
+    /// https://chromium.googlesource.com/chromium/src/sandbox/+/refs/heads/main/mac/seatbelt_sandbox_design.md
+    ///
+    /// From the sandbox.h:
+    ///
+    /// @function sandbox_init
+    /// Places the current process in a sandbox with a profile as
+    /// specified.  If the process is already in a sandbox, the new profile
+    /// is ignored and sandbox_init() returns an error.
+    ///
+    /// @param profile (input)   The Sandbox profile to be used.  The format
+    /// and meaning of this parameter is modified by the `flags' parameter.
+    ///
+    /// @param flags (input)   Must be SANDBOX_NAMED.  All other
+    /// values are reserved.
+    ///
+    /// @param errorbuf (output)   In the event of an error, sandbox_init
+    /// will set `*errorbuf' to a pointer to a NUL-terminated string
+    /// describing the error. This string may contain embedded newlines.
+    /// This error information is suitable for developers and is not
+    /// intended for end users.
+    ///
+    /// If there are no errors, `*errorbuf' will be set to NULL.  The
+    /// buffer `*errorbuf' should be deallocated with `sandbox_free_error'.
+    ///
+    /// @result 0 on success, -1 otherwise.
+    ///
+    /// int sandbox_init(
+    ///   const char *profile,
+    ///   uint64_t flags,
+    ///   char **errorbuf);
+    fn sandbox_init(
+        profile: *const std::ffi::c_char,
+        flags: u64,
+        errorbuf: *mut *mut std::ffi::c_char,
+    ) -> i32;
 }
 
 fn mkdirat(dir: &File, p: &Path, perm: Permissions) -> Result<(), Box<dyn Error>> {
