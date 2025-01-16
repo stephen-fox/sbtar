@@ -156,7 +156,7 @@ fn parse_args() -> Result<Args, Box<dyn Error>> {
                 exit(0);
             }
             _ => {
-                if i == env::args().count() - 2 && !arg.starts_with("-") {
+                if i == env::args().count() - 2 && !arg.starts_with('-') {
                     // Some sandboxing code (like that of macOS) requires
                     // the path be absolute. We cannot use fs::canonicalize
                     // because it tries to access the file system, which
