@@ -149,8 +149,8 @@ fn parse_args() -> Result<Args, Box<dyn Error>> {
             }
             "-F" => args.use_existing_dir = true,
             "-z" => args.gzip = true,
-            "-v" => args.verbose = args.verbose + 1,
-            "-vv" => args.verbose = args.verbose + 2,
+            "-v" => args.verbose += 1,
+            "-vv" => args.verbose = 2,
             "--version" => {
                 println!("{VERSION}");
                 exit(0);
