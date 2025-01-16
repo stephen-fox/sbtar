@@ -16,6 +16,8 @@ use flate2::read::GzDecoder;
 
 use tar::Archive;
 
+const VERSION: &str = "0.0.1";
+
 fn main() -> Result<(), Box<dyn Error>> {
     let args = parse_args()?;
 
@@ -128,7 +130,8 @@ OPTIONS
   -F          Allow extracting into an existing directory
   -h, --help  Display this information
   -z, --gzip  File is gzip-compressed
-  -v[v]       Enable verbose logging";
+  -v[v]       Enable verbose logging
+  --version   Write the version number to stdout and exit";
 
 fn parse_args() -> Result<Args, Box<dyn Error>> {
     let mut args = Args {
@@ -148,6 +151,10 @@ fn parse_args() -> Result<Args, Box<dyn Error>> {
             "-z" => args.gzip = true,
             "-v" => args.verbose = args.verbose + 1,
             "-vv" => args.verbose = args.verbose + 2,
+            "--version" => {
+                println!("{VERSION}");
+                exit(0);
+            }
             _ => {
                 if i == env::args().count() - 2 && !arg.starts_with("-") {
                     // Some sandboxing code (like that of macOS) requires
