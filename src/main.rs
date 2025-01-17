@@ -172,11 +172,11 @@ struct Args {
 }
 
 const USAGE: &str = "SYNOPSIS
-  sbtar [options] OUTPUT-DIR
+  sbtar [options] OUTPUT-DIR < /path/to/file.tar
 
 DESCRIPTION
   sbtar enters a sandbox and extracts a tar from standard input
-  into OUTPUT-DIR.
+  into a directory.
 
 OPTIONS
   -F          Allow extracting into an existing directory

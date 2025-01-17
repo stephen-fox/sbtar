@@ -1,6 +1,12 @@
 [package]
 name = "sbtar"
-description = "sbtar enters a sandbox and extracts a tar from standard input into OUTPUT-DIR."
+description = """
+sbtar enters a sandbox and extracts a tar from standard input
+into a directory.
+
+Please note that this project is experimental. I developed it
+to learn about Rust and its foreign function interface. It is
+not meant as a full `tar` replacement."""
 version = "0.1.0"
 edition = "2021"
 
