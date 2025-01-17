@@ -18,7 +18,15 @@ use tar::Archive;
 
 const VERSION: &str = "0.0.1";
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
+    #![allow(unused_must_use)]
+    main_with_error().is_err_and(|err| {
+        eprintln!("fatal: {err}");
+        exit(1);
+    });
+}
+
+fn main_with_error() -> Result<(), Box<dyn Error>> {
     let args = parse_args()?;
 
     if args.output_dir.exists() {
@@ -29,13 +37,23 @@ fn main() -> Result<(), Box<dyn Error>> {
             ))?
         }
     } else {
-        fs::create_dir(&args.output_dir)?;
-        fs::set_permissions(&args.output_dir, Permissions::from_mode(0o700))?;
+        fs::create_dir(&args.output_dir)
+            .map_err(|err| format!("failed to create output directory - {err}"))?;
+
+        fs::set_permissions(&args.output_dir, Permissions::from_mode(0o700))
+            .map_err(|err| format!("failed to chmod output directory - {err}"))?;
     }
 
-    let output_dir = File::open(&args.output_dir)?;
+    let output_dir = File::open(&args.output_dir).map_err(|err| {
+        format!(
+            "failed to open output directory {} - {}",
+            args.output_dir.display(),
+            err
+        )
+    })?;
 
-    enter_sandbox(args.output_dir.as_path())?;
+    enter_sandbox(args.output_dir.as_path())
+        .map_err(|err| format!("failed to enter sandbox - {err}"))?;
 
     // The following awful code abstracts different tar types.
     // It is based on this stackoverflow answer by Emoun and
@@ -66,48 +84,81 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut archive = Archive::new(reader);
 
     for entry_result in archive.entries()? {
-        let mut entry = entry_result?;
+        let mut entry = entry_result.map_err(|err| format!("failed to get tar entry - {err}"))?;
 
-        let current_path = entry.path()?;
-        let current_mode = entry.header().mode()?;
-        let current_perm = Permissions::from_mode(current_mode);
+        let path = entry
+            .path()
+            .map_err(|err| format!("failed to get entry's path - {err}"))?;
+
+        let mode = entry.header().mode().map_err(|err| {
+            format!(
+                "failed to get file mode for entry {} - {}",
+                path.display(),
+                err
+            )
+        })?;
+
+        let perm = Permissions::from_mode(mode);
 
         match args.verbose {
             0 => {}
-            1 => eprintln!("{d}", d = current_path.display()),
+            1 => eprintln!("{d}", d = path.display()),
             _ => eprintln!(
                 "{path} | 0x{type_b:x} | 0o{mode:o}",
-                path = current_path.display(),
+                path = path.display(),
                 type_b = entry.header().entry_type().as_byte(),
-                mode = current_mode,
+                mode = mode,
             ),
         }
 
         if entry.header().entry_type().is_dir() {
             if args.use_existing_dir {
-                let exists = existsat(&output_dir, current_path.as_ref())?;
+                let exists = existsat(&output_dir, path.as_ref())
+                    .map_err(|err| format!("failed to existsat {} - {}", path.display(), err))?;
                 if exists {
                     continue;
                 }
             }
 
-            mkdirat(&output_dir, current_path.as_ref(), current_perm)?;
+            mkdirat(&output_dir, path.as_ref(), perm).map_err(|err| {
+                format!("failed to mkdirat for entry {} - {}", path.display(), err)
+            })?;
 
             continue;
         }
 
         if args.use_existing_dir {
-            unlinkat_if_exists(&output_dir, current_path.as_ref())?;
+            unlinkat_if_exists(&output_dir, path.as_ref())
+                .map_err(|err| format!("failed to unlinkat {} - {}", path.display(), err))?;
         }
 
         let mut current_file = openat(
             &output_dir,
-            current_path.as_ref(),
+            path.as_ref(),
             libc::O_CREAT | libc::O_WRONLY,
-            current_perm,
-        )?;
+            perm,
+        )
+        .map_err(|err| format!("failed to openat entry {} = {}", path.display(), err))?;
 
-        io::copy(&mut entry, &mut current_file)?;
+        // We need a separate variable for the file path because the tar
+        // entry's ownership is transferred to io::copy, which makes it
+        // unavailable to map_err. We do this here rather than at the
+        // start of the function because ownership only becomes
+        // problematic here.
+        //
+        // No idea what the performance penalty / overhead of this is,
+        // but I think it is important to have useful error messages.
+        // Re-running with "-v" is not really useful for transient
+        // failures.
+        let err_path = PathBuf::from(path.as_ref());
+
+        io::copy(&mut entry, &mut current_file).map_err(|err| {
+            format!(
+                "failed to write entry to file system {} - {}",
+                err_path.display(),
+                err
+            )
+        })?;
     }
 
     Ok(())
