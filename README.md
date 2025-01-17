@@ -50,7 +50,7 @@ cargo install
 
 ## Usage
 
-```sh
+```
 sbtar [options] OUTPUT-DIR < /path/to/file.tar
 ```
 
