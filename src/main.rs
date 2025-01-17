@@ -303,7 +303,7 @@ extern "C" {
     /// Refer to: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sandbox.h
     ///
     /// For an example with sandbox_init_with_parameters, refer to:
-    /// https://chromium.googlesource.com/chromium/src/sandbox/+/refs/heads/main/mac/seatbelt_sandbox_design.md
+    /// https://github.com/chromium/chromium/blob/780128faaadb425a15144678b5591a85d19aa891/sandbox/mac/seatbelt_sandbox_design.md#appendix
     ///
     /// From the sandbox.h:
     ///
