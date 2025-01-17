@@ -61,7 +61,7 @@ sbtar [options] OUTPUT-DIR < /path/to/file.tar
 sbtar foo < file.tar
 
 # Extract a gzip-compressed tar:
-sbtar -z foo < file.tar
+sbtar -z foo < file.tar.gz
 
 # Extract into an existing directory:
 sbtar -F foo < file.tar
