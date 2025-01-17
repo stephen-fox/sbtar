@@ -1,6 +1,6 @@
 [package]
-name = "star"
-description = "star enters a sandbox and extracts a tar from stdin into OUTPUT-DIR"
+name = "sbtar"
+description = "sbtar enters a sandbox and extracts a tar from standard input into OUTPUT-DIR."
 version = "0.1.0"
 edition = "2021"
 

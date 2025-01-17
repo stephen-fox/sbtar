@@ -172,10 +172,11 @@ struct Args {
 }
 
 const USAGE: &str = "SYNOPSIS
-  star [options] OUTPUT-DIR
+  sbtar [options] OUTPUT-DIR
 
 DESCRIPTION
-  star enters a sandbox and extracts a tar from stdin into OUTPUT-DIR.
+  sbtar enters a sandbox and extracts a tar from standard input
+  into OUTPUT-DIR.
 
 OPTIONS
   -F          Allow extracting into an existing directory

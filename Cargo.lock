@@ -116,7 +116,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "star"
+name = "sbtar"
 version = "0.1.0"
 dependencies = [
  "flate2",
