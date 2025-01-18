@@ -10,7 +10,9 @@ not meant as a full `tar` replacement.
 ## Features
 
 - Leverages various operating systems' sandboxing features to prevent
-  path traversal when extracting a tar file
+  path traversal or other security sadness when extracting a tar file
+  (refer to the [Supported systems section](#supported-systems) for
+  details)
 - Supports gzip-compressed tar files
 - Somewhat close adherence to bsdtar's CLI
 
