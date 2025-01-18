@@ -51,21 +51,21 @@ cargo install
 ## Usage
 
 ```
-sbtar [options] OUTPUT-DIR < /path/to/file.tar
+sbtar [options] < /path/to/file.tar
 ```
 
 ## Examples
 
 ```sh
 # Extract a standard tar file into a directory named "foo":
-sbtar foo < file.tar
+sbtar -C foo < file.tar
 
 # Extract a gzip-compressed tar:
-sbtar -z foo < file.tar.gz
+sbtar -z -C foo < file.tar.gz
 
 # Extract into an existing directory:
-sbtar -F foo < file.tar
+sbtar -F -C foo < file.tar
 
 # Enable verbose logging:
-sbtar -v foo < file.tar
+sbtar -v -C foo < file.tar
 ```

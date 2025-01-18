@@ -29,30 +29,30 @@ fn main() {
 fn main_with_error() -> Result<(), Box<dyn Error>> {
     let args = parse_args()?;
 
-    if args.output_dir.exists() {
+    if args.context_dir.exists() {
         if !args.use_existing_dir {
             Err(format!(
                 "output directory already exists ('{p}')",
-                p = args.output_dir.display()
+                p = args.context_dir.display()
             ))?
         }
     } else {
-        fs::create_dir(&args.output_dir)
+        fs::create_dir(&args.context_dir)
             .map_err(|err| format!("failed to create output directory - {err}"))?;
 
-        fs::set_permissions(&args.output_dir, Permissions::from_mode(0o700))
+        fs::set_permissions(&args.context_dir, Permissions::from_mode(0o700))
             .map_err(|err| format!("failed to chmod output directory - {err}"))?;
     }
 
-    let output_dir = File::open(&args.output_dir).map_err(|err| {
+    let output_dir = File::open(&args.context_dir).map_err(|err| {
         format!(
             "failed to open output directory {} - {}",
-            args.output_dir.display(),
+            args.context_dir.display(),
             err
         )
     })?;
 
-    enter_sandbox(args.output_dir.as_path())
+    enter_sandbox(args.context_dir.as_path())
         .map_err(|err| format!("failed to enter sandbox - {err}"))?;
 
     // The following awful code abstracts different tar types.
@@ -168,17 +168,18 @@ struct Args {
     use_existing_dir: bool,
     gzip: bool,
     verbose: u8,
-    output_dir: PathBuf,
+    context_dir: PathBuf,
 }
 
 const USAGE: &str = "SYNOPSIS
-  sbtar [options] OUTPUT-DIR < /path/to/file.tar
+  sbtar [options] < /path/to/file.tar
 
 DESCRIPTION
   sbtar enters a sandbox and extracts a tar from standard input
   into a directory.
 
 OPTIONS
+  -C <dir>    Switch to directory 'dir' before creation or extraction
   -F          Allow extracting into an existing directory
   -h, --help  Display this information
   -z, --gzip  File is gzip-compressed
@@ -186,54 +187,84 @@ OPTIONS
   --version   Write the version number to stdout and exit";
 
 fn parse_args() -> Result<Args, Box<dyn Error>> {
-    let mut args = Args {
-        use_existing_dir: false,
-        gzip: false,
-        verbose: 0,
-        output_dir: PathBuf::new(),
-    };
+    let mut pargs = pico_args::Arguments::from_env();
 
-    for (i, arg) in env::args().skip(1).enumerate() {
-        match arg.as_str() {
-            "-h" | "--help" => {
-                eprintln!("{USAGE}");
-                exit(1);
-            }
-            "-F" => args.use_existing_dir = true,
-            "-z" => args.gzip = true,
-            "-v" => args.verbose += 1,
-            "-vv" => args.verbose = 2,
-            "--version" => {
-                println!("{VERSION}");
-                exit(0);
-            }
-            _ => {
-                if i == env::args().count() - 2 && !arg.starts_with('-') {
-                    // Some sandboxing code (like that of macOS) requires
-                    // the path be absolute. We cannot use fs::canonicalize
-                    // because it tries to access the file system, which
-                    // will fail if the directory does not already exist.
-                    args.output_dir.push(&arg);
-                    if args.output_dir.is_relative() {
-                        args.output_dir.clear();
+    if pargs.contains(["-h", "--help"]) {
+        println!("{USAGE}");
+        exit(1);
+    }
 
-                        args.output_dir.push(env::current_dir()?);
-                        args.output_dir.push(arg);
-                    }
+    if pargs.contains("--version") {
+        println!("{VERSION}");
+        exit(0);
+    }
 
-                    break;
+    let context_dir: Option<String> = pargs
+        .opt_value_from_str("-C")
+        .map_err(|err| format!("failed to parse context directory from arguments - {err}"))?;
+
+    let context_dir = to_abs_path(&match context_dir {
+        Some(dir) => dir,
+        None => String::from("."),
+    })
+    .map_err(|err| format!("failed to parse context directory path - {err}"))?;
+
+    let use_existing_dir = pargs.contains("-F");
+
+    let gzip = pargs.contains(["-z", "--gzip"]);
+
+    let mut verbose: u8 = 0;
+    while pargs.contains("-v") {
+        verbose += 1;
+    }
+
+    let extra_args = pargs.finish();
+
+    if !extra_args.is_empty() {
+        let remaining_str = extra_args
+            .iter()
+            .map(|x| {
+                if let Some(maybe_str) = x.to_str() {
+                    maybe_str
+                } else {
+                    "???"
                 }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
 
-                Err(format!("unknown argument: {arg}"))?
-            }
-        }
+        Err(format!(
+            "please review and remove any extra arguments ({remaining_str})"
+        ))?;
     }
 
-    if args.output_dir.display().to_string() == "" {
-        Err("please specify an output directory as the final argument")?
+    Ok(Args {
+        use_existing_dir: use_existing_dir,
+        gzip: gzip,
+        verbose: verbose,
+        context_dir: context_dir,
+    })
+}
+
+// Some sandboxing code (like that of macOS) requires
+// paths be absolute. We cannot use fs::canonicalize
+// because it tries to access the file system, which
+// will fail if the directory does not already exist.
+fn to_abs_path(path_str: &str) -> Result<PathBuf, Box<dyn Error>> {
+    let mut path_buf = PathBuf::from(&path_str);
+
+    if path_buf.is_relative() {
+        let cwd = env::current_dir()
+            .map_err(|err| format!("failed to get current working directory - {err}"))?;
+
+        path_buf.clear();
+
+        path_buf.push(cwd);
+
+        path_buf.push(path_str);
     }
 
-    Ok(args)
+    Ok(path_buf)
 }
 
 #[cfg(target_os = "freebsd")]
