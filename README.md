@@ -47,7 +47,7 @@ Alternatively, install from a copy of the source code:
 ```sh
 git clone https://gitlab.com/stephen-fox/sbtar
 cd sbtar
-cargo install
+cargo install --path .
 ```
 
 ## Usage
