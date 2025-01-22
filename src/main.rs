@@ -16,11 +16,10 @@ use flate2::read::GzDecoder;
 use tar::Archive;
 
 fn main() {
-    #![allow(unused_must_use)]
-    main_with_error().is_err_and(|err| {
+    if let Err(err) = main_with_error() {
         eprintln!("fatal: {err}");
         exit(1);
-    });
+    };
 }
 
 fn main_with_error() -> Result<(), Box<dyn Error>> {
