@@ -9,6 +9,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "512761e0bb2578dd7380c6baaa0f4ce03e84f95e960231d1dec8bf4d7d6e2627"
 
 [[package]]
+name = "argparse"
+version = "0.2.2"
+source = "git+https://github.com/stephen-fox/rust-argparse?branch=rust-2021-edition#4122828932b4ebddcbdf91e035d900abca916cc3"
+
+[[package]]
 name = "bitflags"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -94,12 +99,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pico-args"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5be167a7af36ee22fe3115051bc51f6e6c7054c9348e28deb4f49bd6f705a315"
-
-[[package]]
 name = "redox_syscall"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -125,9 +124,9 @@ dependencies = [
 name = "sbtar"
 version = "0.1.0"
 dependencies = [
+ "argparse",
  "flate2",
  "libc",
- "pico-args",
  "tar",
 ]
 

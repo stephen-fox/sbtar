@@ -16,8 +16,6 @@ use flate2::read::GzDecoder;
 
 use tar::Archive;
 
-const VERSION: &str = "0.0.1";
-
 fn main() {
     #![allow(unused_must_use)]
     main_with_error().is_err_and(|err| {
@@ -187,84 +185,99 @@ OPTIONS
   --version   Write the version number to stdout and exit";
 
 fn parse_args() -> Result<Args, Box<dyn Error>> {
-    let mut pargs = pico_args::Arguments::from_env();
+    let mut args = Args {
+        use_existing_dir: false,
+        gzip: false,
+        verbose: 0,
+        context_dir: PathBuf::from("."),
+    };
 
-    if pargs.contains(["-h", "--help"]) {
-        println!("{USAGE}");
+    let mut parser = argparse::ArgumentParser::new();
+
+    parser.add_option(&["-h", "--help"], Help {}, "Display this information");
+
+    parser.refer(&mut args.context_dir).add_option(
+        &["-C"],
+        argparse::Parse,
+        "Switch to directory 'dir' before creation or extraction",
+    );
+
+    parser.refer(&mut args.use_existing_dir).add_option(
+        &["-F"],
+        argparse::StoreTrue,
+        "Allow extracting into an existing directory",
+    );
+
+    parser.refer(&mut args.gzip).add_option(
+        &["-z", "--gzip"],
+        argparse::StoreTrue,
+        "File is gzip-compressed",
+    );
+
+    parser.add_option(
+        &["--version"],
+        argparse::Print(env!("CARGO_PKG_VERSION").to_string()),
+        "Write the version number to stdout and exit",
+    );
+
+    parser.refer(&mut args.verbose).add_option(
+        &["-v"],
+        argparse::IncrBy(1),
+        "Enable verbose logging",
+    );
+
+    parser.parse_args_or_exit();
+
+    drop(parser);
+
+    to_abs_path(&mut args.context_dir)
+        .map_err(|err| format!("failed to get absolute path for context directory - {err}"))?;
+
+    Ok(args)
+}
+
+struct Help {}
+
+impl argparse::action::IFlagAction for Help {
+    fn parse_flag(&self) -> argparse::action::ParseResult {
+        eprintln!("{USAGE}");
         exit(1);
     }
-
-    if pargs.contains("--version") {
-        println!("{VERSION}");
-        exit(0);
-    }
-
-    let context_dir: Option<String> = pargs
-        .opt_value_from_str("-C")
-        .map_err(|err| format!("failed to parse context directory from arguments - {err}"))?;
-
-    let context_dir = to_abs_path(&match context_dir {
-        Some(dir) => dir,
-        None => String::from("."),
-    })
-    .map_err(|err| format!("failed to parse context directory path - {err}"))?;
-
-    let use_existing_dir = pargs.contains("-F");
-
-    let gzip = pargs.contains(["-z", "--gzip"]);
-
-    let mut verbose: u8 = 0;
-    while pargs.contains("-v") {
-        verbose += 1;
-    }
-
-    let extra_args = pargs.finish();
-
-    if !extra_args.is_empty() {
-        let remaining_str = extra_args
-            .iter()
-            .map(|x| {
-                if let Some(maybe_str) = x.to_str() {
-                    maybe_str
-                } else {
-                    "???"
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        Err(format!(
-            "please review and remove any extra arguments ({remaining_str})"
-        ))?;
-    }
-
-    Ok(Args {
-        use_existing_dir: use_existing_dir,
-        gzip: gzip,
-        verbose: verbose,
-        context_dir: context_dir,
-    })
 }
 
 // Some sandboxing code (like that of macOS) requires
-// paths be absolute. We cannot use fs::canonicalize
-// because it tries to access the file system, which
-// will fail if the directory does not already exist.
-fn to_abs_path(path_str: &str) -> Result<PathBuf, Box<dyn Error>> {
-    let mut path_buf = PathBuf::from(&path_str);
-
+// paths be absolute.
+fn to_abs_path(path_buf: &mut PathBuf) -> Result<(), Box<dyn Error>> {
     if path_buf.is_relative() {
-        let cwd = env::current_dir()
-            .map_err(|err| format!("failed to get current working directory - {err}"))?;
+        // TODO: Use std::path::absolute when comfi with going
+        // to rust version >=1.79:
+        // https://doc.rust-lang.org/std/path/fn.absolute.html
+        //
+        // The problem with fs::canonicalize is that it needs to
+        // access the file system, thus a nonexistent path will
+        // result in an error. The following "match" expression
+        // attempts to awkwardly deal with that.
+        match fs::canonicalize(path_buf.clone()) {
+            Ok(p) => {
+                path_buf.clear();
+                path_buf.push(p);
+            }
+            Err(_) => {
+                let cwd = env::current_dir()
+                    .map_err(|err| format!("failed to get current working directory - {err}"))?;
 
-        path_buf.clear();
+                let path_clone = path_buf.clone();
 
-        path_buf.push(cwd);
+                path_buf.clear();
 
-        path_buf.push(path_str);
+                path_buf.push(cwd);
+
+                path_buf.push(path_clone);
+            }
+        };
     }
 
-    Ok(path_buf)
+    Ok(())
 }
 
 #[cfg(target_os = "freebsd")]
