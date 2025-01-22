@@ -13,7 +13,6 @@ use std::{
 };
 
 use flate2::read::GzDecoder;
-
 use tar::Archive;
 
 fn main() {
