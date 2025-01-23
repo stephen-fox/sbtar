@@ -53,12 +53,7 @@ cargo install --path .
 ## Usage
 
 ```
-SYNOPSIS
-  sbtar [options] < /path/to/file.tar
-
-DESCRIPTION
-  sbtar enters a sandbox and extracts a tar from standard input
-  into a directory.
+sbtar [options] < /path/to/file.tar
 
 OPTIONS
   -C <dir>    Switch to directory 'dir' before creation or extraction
