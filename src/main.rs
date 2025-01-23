@@ -42,7 +42,7 @@ fn main_with_error() -> Result<(), Box<dyn Error>> {
 
     let output_dir = File::open(&args.context_dir).map_err(|err| {
         format!(
-            "failed to open output directory {} - {}",
+            "failed to open output directory '{}' - {}",
             args.context_dir.display(),
             err
         )
