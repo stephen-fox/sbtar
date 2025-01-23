@@ -28,7 +28,7 @@ fn main_with_error() -> Result<(), Box<dyn Error>> {
     if args.context_dir.exists() {
         if !args.use_existing_dir {
             Err(format!(
-                "output directory already exists ('{p}')",
+                "output directory already exists, refer to -h to override ('{p}')",
                 p = args.context_dir.display()
             ))?
         }
@@ -233,7 +233,8 @@ DESCRIPTION
 
 OPTIONS
   -C <dir>    Switch to directory 'dir' before creation or extraction
-  -F          Allow extracting into an existing directory
+  -F          Allow extracting into an existing directory (i.e., allow
+              files to be overwritten in an existing directory)
   -h, --help  Display this information
   -z, --gzip  File is gzip-compressed
   -v[v]       Enable verbose logging
