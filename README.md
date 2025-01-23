@@ -14,6 +14,8 @@ not meant as a full `tar` replacement.
   (refer to the [Supported systems section](#supported-systems) for
   details)
 - Supports gzip-compressed tar files
+- Defaults to not allowing extraction into an existing directory
+  (this behavior can be overridden with an argument)
 - Somewhat close adherence to bsdtar's CLI
 
 ## Supported systems
@@ -57,7 +59,8 @@ sbtar [options] < /path/to/file.tar
 
 OPTIONS
   -C <dir>    Switch to directory 'dir' before creation or extraction
-  -F          Allow extracting into an existing directory
+  -F          Allow extracting into an existing directory (i.e., allow
+              files to be overwritten in an existing directory)
   -h, --help  Display this information
   -z, --gzip  File is gzip-compressed
   -v[v]       Enable verbose logging
