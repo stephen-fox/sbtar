@@ -18,7 +18,7 @@ not meant as a full `tar` replacement.
 
 ## Supported systems
 
-sbtar is supported on the following operating systems:
+sbtar supports the following operating systems:
 
 - FreeBSD (uses [capsicum][capsicum])
 - OpenBSD (uses [pledge][pledge] and [unveil][unveil])
