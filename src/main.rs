@@ -239,6 +239,7 @@ OPTIONS
   -v[v]       Enable verbose logging
   --version   Write the version number to stdout and exit"
         );
+
         exit(1);
     }
 }
