@@ -52,8 +52,8 @@ fn main_with_error() -> Result<(), Box<dyn Error>> {
         .map_err(|err| format!("failed to enter sandbox - {err}"))?;
 
     // The following awful code abstracts different tar types.
-    // It is based on this stackoverflow answer by Emoun and
-    // Chayim Friedman respectively:
+    // It is based on the following stackoverflow answers by
+    // Emoun and Chayim Friedman respectively:
     // - https://stackoverflow.com/a/67041779
     // - https://stackoverflow.com/a/70104523
     //
