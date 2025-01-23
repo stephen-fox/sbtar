@@ -167,21 +167,6 @@ struct Args {
     context_dir: PathBuf,
 }
 
-const USAGE: &str = "SYNOPSIS
-  sbtar [options] < /path/to/file.tar
-
-DESCRIPTION
-  sbtar enters a sandbox and extracts a tar from standard input
-  into a directory.
-
-OPTIONS
-  -C <dir>    Switch to directory 'dir' before creation or extraction
-  -F          Allow extracting into an existing directory
-  -h, --help  Display this information
-  -z, --gzip  File is gzip-compressed
-  -v[v]       Enable verbose logging
-  --version   Write the version number to stdout and exit";
-
 fn parse_args() -> Result<Args, Box<dyn Error>> {
     let mut args = Args {
         use_existing_dir: false,
@@ -238,7 +223,22 @@ struct Help {}
 
 impl argparse::action::IFlagAction for Help {
     fn parse_flag(&self) -> argparse::action::ParseResult {
-        eprintln!("{USAGE}");
+        eprintln!(
+            "SYNOPSIS
+  sbtar [options] < /path/to/file.tar
+
+DESCRIPTION
+  sbtar enters a sandbox and extracts a tar from standard input
+  into a directory.
+
+OPTIONS
+  -C <dir>    Switch to directory 'dir' before creation or extraction
+  -F          Allow extracting into an existing directory
+  -h, --help  Display this information
+  -z, --gzip  File is gzip-compressed
+  -v[v]       Enable verbose logging
+  --version   Write the version number to stdout and exit"
+        );
         exit(1);
     }
 }
