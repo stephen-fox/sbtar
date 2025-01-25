@@ -48,7 +48,7 @@ fn main_with_error() -> Result<(), Box<dyn Error>> {
         )
     })?;
 
-    enter_sandbox(args.context_dir.as_path())
+    enter_extract_sandbox(args.context_dir.as_path())
         .map_err(|err| format!("failed to enter sandbox - {err}"))?;
 
     // The following awful code abstracts different tar types.
@@ -281,7 +281,7 @@ fn to_abs_path(path_buf: &mut PathBuf) -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(target_os = "freebsd")]
-fn enter_sandbox(_: &Path) -> Result<(), Box<dyn Error>> {
+fn enter_extract_sandbox(_: &Path) -> Result<(), Box<dyn Error>> {
     if unsafe { libc::cap_enter() } != 0 {
         Err(last_error("cap_enter failed"))?;
     }
@@ -290,7 +290,7 @@ fn enter_sandbox(_: &Path) -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(target_os = "openbsd")]
-fn enter_sandbox(output_dir: &Path) -> Result<(), Box<dyn Error>> {
+fn enter_extract_sandbox(output_dir: &Path) -> Result<(), Box<dyn Error>> {
     let path_cstring = path_to_cstring(output_dir)?;
     let unveil_perms = CString::new("rwc")?;
 
@@ -313,7 +313,7 @@ fn enter_sandbox(output_dir: &Path) -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
-fn enter_sandbox(output_dir: &Path) -> Result<(), Box<dyn Error>> {
+fn enter_extract_sandbox(output_dir: &Path) -> Result<(), Box<dyn Error>> {
     let profile = CString::new(format!(
         "(version 1)
 (deny default)
