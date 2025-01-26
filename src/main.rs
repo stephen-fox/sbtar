@@ -91,6 +91,10 @@ fn main_with_error() -> Result<(), Box<dyn Error>> {
                 .map_err(|_| format!("entry's path contains '..' ({})", path.display()))?;
         }
 
+        if !args.insecure_allow_abs && path.is_absolute() {
+            Err(format!("entry's path is absolute ({})", path.display()))?;
+        }
+
         let mode = entry.header().mode().map_err(|err| {
             format!(
                 "failed to get file mode for entry {} - {}",
@@ -171,6 +175,7 @@ struct Args {
     verbose: u8,
     context_dir: PathBuf,
     insecure_allow_dotdot: bool,
+    insecure_allow_abs: bool,
 }
 
 fn parse_args() -> Result<Args, Box<dyn Error>> {
@@ -180,6 +185,7 @@ fn parse_args() -> Result<Args, Box<dyn Error>> {
         verbose: 0,
         context_dir: PathBuf::from("."),
         insecure_allow_dotdot: false,
+        insecure_allow_abs: false,
     };
 
     let mut parser = argparse::ArgumentParser::new();
@@ -222,6 +228,12 @@ fn parse_args() -> Result<Args, Box<dyn Error>> {
         "Allow entries' paths to contain '..'",
     );
 
+    parser.refer(&mut args.insecure_allow_abs).add_option(
+        &["--insecure-allow-abs"],
+        argparse::StoreTrue,
+        "Allow entries' paths to be absolute",
+    );
+
     parser.parse_args_or_exit();
 
     drop(parser);
@@ -254,7 +266,8 @@ OPTIONS
   --version   Write the version number to stdout and exit
 
 BAD IDEAS
-  --insecure-allow-dotdot  Allow entries' paths to contain '..'"
+  --insecure-allow-dotdot  Allow entries' paths to contain '..'
+  --insecure-allow-abs     Allow entries' paths to be absolute"
         );
 
         exit(1);
