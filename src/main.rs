@@ -8,7 +8,7 @@ use std::{
         fd::{AsRawFd, FromRawFd},
         unix::fs::PermissionsExt,
     },
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     process::exit,
 };
 
@@ -85,6 +85,11 @@ fn main_with_error() -> Result<(), Box<dyn Error>> {
         let path = entry
             .path()
             .map_err(|err| format!("failed to get entry's path - {err}"))?;
+
+        if !args.insecure_allow_dotdot {
+            path_contains_dotdot(&path)
+                .map_err(|_| format!("entry's path contains '..' ({})", path.display()))?;
+        }
 
         let mode = entry.header().mode().map_err(|err| {
             format!(
@@ -165,6 +170,7 @@ struct Args {
     gzip: bool,
     verbose: u8,
     context_dir: PathBuf,
+    insecure_allow_dotdot: bool,
 }
 
 fn parse_args() -> Result<Args, Box<dyn Error>> {
@@ -173,6 +179,7 @@ fn parse_args() -> Result<Args, Box<dyn Error>> {
         gzip: false,
         verbose: 0,
         context_dir: PathBuf::from("."),
+        insecure_allow_dotdot: false,
     };
 
     let mut parser = argparse::ArgumentParser::new();
@@ -209,6 +216,12 @@ fn parse_args() -> Result<Args, Box<dyn Error>> {
         "Enable verbose logging",
     );
 
+    parser.refer(&mut args.insecure_allow_dotdot).add_option(
+        &["--insecure-allow-dotdot"],
+        argparse::StoreTrue,
+        "Allow entries' paths to contain '..'",
+    );
+
     parser.parse_args_or_exit();
 
     drop(parser);
@@ -238,7 +251,10 @@ OPTIONS
   -h, --help  Display this information
   -z, --gzip  File is gzip-compressed
   -v[v]       Enable verbose logging
-  --version   Write the version number to stdout and exit"
+  --version   Write the version number to stdout and exit
+
+BAD IDEAS
+  --insecure-allow-dotdot  Allow entries' paths to contain '..'"
         );
 
         exit(1);
@@ -382,6 +398,16 @@ extern "C" {
         flags: u64,
         errorbuf: *mut *mut std::ffi::c_char,
     ) -> i32;
+}
+
+fn path_contains_dotdot(p: &Path) -> Result<(), Box<dyn Error>> {
+    for part in p.components() {
+        if Component::ParentDir == part {
+            Err("path contains '..'")?;
+        }
+    }
+
+    Ok(())
 }
 
 fn mkdirat(dir: &File, p: &Path, perm: Permissions) -> Result<(), Box<dyn Error>> {
