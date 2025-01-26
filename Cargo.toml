@@ -7,7 +7,7 @@ into a directory.
 Please note that this project is experimental. I developed it
 to learn about Rust and its foreign function interface. It is
 not meant as a full `tar` replacement."""
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 
 [dependencies]
